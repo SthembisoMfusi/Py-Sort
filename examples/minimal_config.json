@@ -1,0 +1,5 @@
+{
+  "Images": [".jpg", ".png", ".gif"],
+  "Documents": [".pdf", ".txt"],
+  "Other": []
+}
