@@ -1,45 +1,15 @@
 {
-  "Images": [
-    ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg", ".webp", ".tiff", ".ico", ".raw", ".heic", ".heif"
-  ],
-  "Documents": [
-    ".pdf", ".doc", ".docx", ".txt", ".rtf", ".odt", ".pages", ".md", ".tex", ".epub", ".mobi"
-  ],
-  "Videos": [
-    ".mp4", ".avi", ".mov", ".wmv", ".flv", ".webm", ".mkv", ".m4v", ".3gp", ".mpg", ".mpeg"
-  ],
-  "Audio": [
-    ".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a", ".wma", ".opus", ".aiff", ".au"
-  ],
-  "Archives": [
-    ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".tar.gz", ".tar.bz2", ".cab", ".iso"
-  ],
-  "Code": [
-    ".py", ".js", ".html", ".css", ".java", ".cpp", ".c", ".php", ".rb", ".go", ".rs", ".ts", ".jsx", ".tsx", ".vue", ".svelte", ".swift", ".kt", ".scala", ".r", ".m", ".pl", ".sh", ".bat", ".ps1"
-  ],
-  "Spreadsheets": [
-    ".xls", ".xlsx", ".csv", ".ods", ".numbers", ".tsv", ".dbf"
-  ],
-  "Presentations": [
-    ".ppt", ".pptx", ".odp", ".key"
-  ],
-  "Executables": [
-    ".exe", ".msi", ".deb", ".rpm", ".dmg", ".app", ".run", ".bin", ".com", ".scr"
-  ],
-  "Fonts": [
-    ".ttf", ".otf", ".woff", ".woff2", ".eot", ".fon"
-  ],
-  "3D_Models": [
-    ".obj", ".fbx", ".dae", ".3ds", ".blend", ".stl", ".ply", ".max", ".ma", ".mb"
-  ],
-  "CAD_Files": [
-    ".dwg", ".dxf", ".step", ".stp", ".iges", ".igs"
-  ],
-  "Database_Files": [
-    ".db", ".sqlite", ".sqlite3", ".mdb", ".accdb"
-  ],
-  "Configuration_Files": [
-    ".ini", ".cfg", ".conf", ".config", ".xml", ".yaml", ".yml", ".json", ".toml"
-  ],
-  "Other": []
-}
+    "Images": [".jpg", ".png", ".gif"],
+    "Documents": [".pdf", ".txt"],
+    "Other": [],
+    "Archives": [".zip", ".rar"],
+    "Code": [".py", ".js", ".html", ".css", ".java"],
+    "Videos": [".mp4", ".mov", ".avi"],
+    "Audio": [".mp3", ".wav", ".m4a"],
+    "Spreadsheets": [".xls", ".xlsx", ".csv"],
+    "Presentations": [".ppt", ".pptx"],
+    "Executables": [".exe", ".msi", ".deb"],
+    "Fonts": [".ttf", ".otf"],
+    "3D_Models": [".obj", ".fbx", ".dae", ".3ds", ".blend", ".stl", ".ply"]
+  }
+  
