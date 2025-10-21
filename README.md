@@ -7,6 +7,14 @@ Perfect for cleaning up messy folders like Downloads, Desktop, or any directory 
 ## ✨ Features
 
 - **Automatic File Sorting**: Moves files into organized folders based on file extensions
+- **Extensive Format Support**: Recognizes 100+ file formats including:
+  - Images (JPEG, PNG, HEIC, RAW formats, PSD, AI)
+  - Documents (PDF, DOCX, EPUB, MOBI, eBooks)
+  - Videos (MP4, MKV, MPG, MPEG, and more)
+  - Audio (MP3, FLAC, WAV, AU, AIFF, MIDI)
+  - Archives (ZIP, RAR, ISO, CAB, and more)
+  - Code files (Python, JavaScript, Swift, Kotlin, Scala, and 30+ languages)
+  - Fonts, 3D Models, Spreadsheets, Presentations, and more!
 - **Detailed Statistics**: See how many files were organized, total size moved, and breakdown by category
 - **Configurable Rules**: Customize sorting rules via JSON configuration
 - **Dry Run Mode**: Preview changes before actually moving files

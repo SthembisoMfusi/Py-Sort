@@ -47,15 +47,22 @@ def get_default_sorting_rules() -> Dict[str, List[str]]:
         Dictionary mapping folder names to lists of file extensions
     """
     return {
-        "Images": [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg", ".webp", ".tiff"],
-        "Documents": [".pdf", ".doc", ".docx", ".txt", ".rtf", ".odt", ".pages"],
-        "Videos": [".mp4", ".avi", ".mov", ".wmv", ".flv", ".webm", ".mkv"],
-        "Audio": [".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a", ".wma"],
-        "Archives": [".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz"],
-        "Code": [".py", ".js", ".html", ".css", ".java", ".cpp", ".c", ".php", ".rb", ".go"],
-        "Spreadsheets": [".xls", ".xlsx", ".csv", ".ods", ".numbers"],
-        "Presentations": [".ppt", ".pptx", ".odp", ".key"],
-        "Executables": [".exe", ".msi", ".deb", ".rpm", ".dmg", ".app"]
+        "Images": [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg", ".webp", ".tiff", ".ico", ".raw", 
+                   ".heic", ".heif", ".cr2", ".nef", ".arw", ".dng", ".psd"],
+        "Documents": [".pdf", ".doc", ".docx", ".txt", ".rtf", ".odt", ".pages", ".md", ".tex",
+                      ".epub", ".mobi", ".azw", ".azw3", ".log"],
+        "Videos": [".mp4", ".avi", ".mov", ".wmv", ".flv", ".webm", ".mkv", ".m4v", ".3gp",
+                   ".mpg", ".mpeg", ".vob", ".ogv"],
+        "Audio": [".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a", ".wma", ".opus", ".aiff",
+                  ".au", ".mid", ".midi"],
+        "Archives": [".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".tar.gz", ".tar.bz2",
+                     ".cab", ".iso", ".img"],
+        "Code": [".py", ".js", ".html", ".css", ".java", ".cpp", ".c", ".php", ".rb", ".go", 
+                 ".rs", ".ts", ".jsx", ".tsx", ".swift", ".kt", ".scala", ".sh", ".bash",
+                 ".json", ".xml", ".yaml", ".yml", ".sql"],
+        "Spreadsheets": [".xls", ".xlsx", ".csv", ".ods", ".numbers", ".tsv", ".xlsm"],
+        "Presentations": [".ppt", ".pptx", ".odp", ".key", ".pps", ".ppsx"],
+        "Executables": [".exe", ".msi", ".deb", ".rpm", ".dmg", ".app", ".apk", ".jar"]
     }
 
 
