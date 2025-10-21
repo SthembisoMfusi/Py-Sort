@@ -15,7 +15,7 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 
 def load_sorting_rules(config_path: str = "config.json") -> Dict[str, List[str]]:
@@ -84,6 +84,23 @@ def get_file_extension(file_path: Path) -> str:
     return file_path.suffix.lower()
 
 
+def format_size(size_bytes: int) -> str:
+    """
+    Convert bytes to human-readable format.
+    
+    Args:
+        size_bytes: Size in bytes
+        
+    Returns:
+        Human-readable string (e.g., '1.5 MB', '500 KB')
+    """
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if size_bytes < 1024.0:
+            return f"{size_bytes:.2f} {unit}"
+        size_bytes /= 1024.0
+    return f"{size_bytes:.2f} PB"
+
+
 def find_target_folder(file_extension: str, sorting_rules: Dict[str, List[str]]) -> str:
     """
     Find the target folder for a given file extension.
@@ -101,7 +118,8 @@ def find_target_folder(file_extension: str, sorting_rules: Dict[str, List[str]])
     return "Other"
 
 
-def organize_files(directory_path: str, dry_run: bool = False, config_path: str = "config.json") -> None:
+def organize_files(directory_path: str, dry_run: bool = False, config_path: str = "config.json", 
+                   show_stats: bool = True) -> None:
     """
     Organize files in the specified directory.
     
@@ -109,6 +127,7 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
         directory_path: Path to the directory to organize
         dry_run: If True, only show what would be moved without actually moving files
         config_path: Path to the configuration file
+        show_stats: If True, display detailed statistics at the end
     """
     directory = Path(directory_path)
     
@@ -136,10 +155,13 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
     
     moved_count = 0
     skipped_count = 0
+    total_size = 0
+    category_stats = {}  # Track files and size per category
     
     for file_path in files_to_organize:
         file_extension = get_file_extension(file_path)
         target_folder = find_target_folder(file_extension, sorting_rules)
+        file_size = os.path.getsize(file_path)
         
         # Create target directory
         target_dir = directory / target_folder
@@ -161,6 +183,13 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
                 shutil.move(str(file_path), str(target_file_path))
                 print(f"Moved '{file_path.name}' to '{target_folder}/'")
                 moved_count += 1
+                total_size += file_size
+                
+                # Update category statistics
+                if target_folder not in category_stats:
+                    category_stats[target_folder] = {'count': 0, 'size': 0}
+                category_stats[target_folder]['count'] += 1
+                category_stats[target_folder]['size'] += file_size
             except Exception as e:
                 print(f"Error moving '{file_path.name}': {e}")
                 skipped_count += 1
@@ -174,6 +203,25 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
         print(f"Files moved: {moved_count}")
         if skipped_count > 0:
             print(f"Files skipped: {skipped_count}")
+        
+        # Display detailed statistics if enabled
+        if show_stats and moved_count > 0:
+            print(f"\n{'='*50}")
+            print("STATISTICS")
+            print(f"{'='*50}")
+            print(f"Total files organized: {moved_count}")
+            print(f"Total size: {format_size(total_size)}")
+            print(f"\nFiles by category:")
+            
+            # Sort categories by count (descending)
+            sorted_categories = sorted(category_stats.items(), 
+                                     key=lambda x: x[1]['count'], 
+                                     reverse=True)
+            
+            for category, stats in sorted_categories:
+                print(f"  {category}: {stats['count']} files ({format_size(stats['size'])})")
+            print(f"{'='*50}")
+
 
 
 def main():
@@ -206,10 +254,16 @@ Examples:
         help="Path to the JSON configuration file (default: config.json)"
     )
     
+    parser.add_argument(
+        "--no-stats",
+        action="store_true",
+        help="Disable detailed statistics at the end"
+    )
+    
     args = parser.parse_args()
     
     try:
-        organize_files(args.directory, args.dry_run, args.config)
+        organize_files(args.directory, args.dry_run, args.config, not args.no_stats)
     except KeyboardInterrupt:
         print("\nOperation cancelled by user.")
         sys.exit(1)
