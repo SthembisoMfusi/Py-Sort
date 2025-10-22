@@ -148,19 +148,20 @@ def handle_dup(path:Path,file,target_file_path,target_folder):
                 if choice==1:
                     
                     file=rename(file)
-                    print(file)
                     dup=False
                     rn_cnt+=1
                 elif choice==2:
                     overwrite(prefix+"/"+sibling_file,file)
                     ow_cnt+=1
+                    break
+                    
                 else:
                     print(f"Skipped '{file}' - file already exists in {target_folder}/")
                     sk_cnt+=1
                 
     if not dup:
-        print("flow")
-        shutil.move(str(file), str(target_file_path))
+        print("LOADDDD")
+        shutil.move(str(file), f"{prefix}/{file.name}")
         print(f"Moved '{file}' to '{target_folder}/'")
         mv_cnt+=1
     return mv_cnt,rn_cnt,sk_cnt,ow_cnt
@@ -262,7 +263,12 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
         color.print_green(f"Files moved: {moved_count}")
         if skipped_count > 0:
             print(f"Files skipped: {skipped_count}")
-        
+        if rename_count>0:
+            print(f"Files Renamed: {rename_count}")
+        if overwrite_count>0:
+            print(f"Files overwritten: {overwrite_count}")
+
+    
         # Display detailed statistics if enabled
         if show_stats and moved_count > 0:
             print(f"\n{'='*50}")

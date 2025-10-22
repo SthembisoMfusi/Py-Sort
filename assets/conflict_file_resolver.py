@@ -26,19 +26,21 @@ def multi_reader(file1,file2,mode="rb"):
 
 
 def is_same_file(file1,file2:Path):
-    if md5(file1.encode()).hexdigest() == md5(file2.name.encode()).hexdigest():
+    if md5(file1.split("/")[-1].encode()).hexdigest() == md5(file2.name.encode()).hexdigest():
         return True
     file1_data,file2_data = multi_reader(file1,file2)
     return md5(file1_data).hexdigest() == md5(file2_data).hexdigest()
 
 
-def overwrite(file1,file2):
-    f1_data,f2_data=multi_reader(file1,file2)
-
-    with open(file1,"wb") as out_file:
+def overwrite(file1,file2:Path):
+    f1_data,f2_data=multi_reader(str(file1),str(file2))
+   
+    with open(str(file1),"wb") as out_file:
         out_file.write(f2_data)
 
-    os.remove(file2)
+    file2.unlink()
+    
+
 
 
 def rename(file,new_name=None):
