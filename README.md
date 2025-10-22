@@ -7,6 +7,15 @@ Perfect for cleaning up messy folders like Downloads, Desktop, or any directory 
 ## ✨ Features
 
 - **Automatic File Sorting**: Moves files into organized folders based on file extensions
+- **Extensive Format Support**: Recognizes 100+ file formats including:
+  - Images (JPEG, PNG, HEIC, RAW formats, PSD, AI)
+  - Documents (PDF, DOCX, EPUB, MOBI, eBooks)
+  - Videos (MP4, MKV, MPG, MPEG, and more)
+  - Audio (MP3, FLAC, WAV, AU, AIFF, MIDI)
+  - Archives (ZIP, RAR, ISO, CAB, and more)
+  - Code files (Python, JavaScript, Swift, Kotlin, Scala, and 30+ languages)
+  - Fonts, 3D Models, Spreadsheets, Presentations, and more!
+- **Detailed Statistics**: See how many files were organized, total size moved, and breakdown by category
 - **Configurable Rules**: Customize sorting rules via JSON configuration
 - **Dry Run Mode**: Preview changes before actually moving files
 - **Beginner Friendly**: Uses only Python standard library - no external dependencies
@@ -52,6 +61,7 @@ Arguments:
 Options:
   --dry-run             Show what would be moved without actually moving files
   --config CONFIG       Path to JSON configuration file (default: config.json)
+  --no-stats            Disable detailed statistics at the end
   -h, --help           Show help message
 ```
 
@@ -67,6 +77,38 @@ python py_sort.py ~/Desktop
 
 # Organize a specific folder with custom rules
 python py_sort.py /path/to/messy/folder --config custom_rules.json
+
+# Organize without showing statistics
+python py_sort.py ~/Downloads --no-stats
+```
+
+### Example Output
+
+When organizing files, you'll see detailed statistics:
+
+```
+Found 15 files to organize...
+Moved 'photo.jpg' to 'Images/'
+Moved 'document.pdf' to 'Documents/'
+Moved 'video.mp4' to 'Videos/'
+...
+
+==================================================
+ORGANIZATION COMPLETE!
+Files moved: 15
+Files skipped: 2
+
+==================================================
+STATISTICS
+==================================================
+Total files organized: 15
+Total size: 45.32 MB
+
+Files by category:
+  Images: 7 files (25.10 MB)
+  Documents: 5 files (15.22 MB)
+  Code: 3 files (5.00 MB)
+==================================================
 ```
 
 ## ⚙️ Configuration
