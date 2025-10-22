@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dry-run mode for safe testing
 - Comprehensive test coverage
 - Beginner-friendly project structure
+- Added Colour feature 
 
 ### Technical Details
 - Python 3.6+ compatibility

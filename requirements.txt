@@ -4,5 +4,5 @@
 
 # Optional dependencies for enhanced features (uncomment as needed):
 # rich>=13.0.0          # For colored terminal output
-# colorama>=0.4.6       # Alternative for colored output
+ colorama>=0.4.6       # Alternative for colored output
 # click>=8.0.0          # For enhanced CLI interface
