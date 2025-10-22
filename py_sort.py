@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 from typing import Dict, List
 from assets import color
-
+from assets.conflict_file_resolver import is_same_file,getInfo,rename,overwrite
 
 def load_sorting_rules(config_path: str = "config.json") -> Dict[str, List[str]]:
     """
@@ -60,7 +60,7 @@ def get_default_sorting_rules() -> Dict[str, List[str]]:
                      ".cab", ".iso", ".img"],
         "Code": [".py", ".js", ".html", ".css", ".java", ".cpp", ".c", ".php", ".rb", ".go", 
                  ".rs", ".ts", ".jsx", ".tsx", ".swift", ".kt", ".scala", ".sh", ".bash",
-                 ".json", ".xml", ".yaml", ".yml", ".sql"],
+                 ".json", ".xml", ".yaml", ".yml", ".sql",".pyc"],
         "Spreadsheets": [".xls", ".xlsx", ".csv", ".ods", ".numbers", ".tsv", ".xlsm"],
         "Presentations": [".ppt", ".pptx", ".odp", ".key", ".pps", ".ppsx"],
         "Executables": [".exe", ".msi", ".deb", ".rpm", ".dmg", ".app", ".apk", ".jar"]
@@ -125,6 +125,52 @@ def find_target_folder(file_extension: str, sorting_rules: Dict[str, List[str]])
             return folder_name
     return "Other"
 
+def handle_dup(path:Path,file,target_file_path,target_folder):
+    ow_cnt=0
+    rn_cnt=0
+    sk_cnt=0
+    mv_cnt=0
+    dup=False
+   
+    for root,dir,children in path.walk():
+        for sibling_file in children:
+            prefix=str(root)
+        
+            if is_same_file(prefix+"/"+sibling_file,file):   
+                dup=True
+                color.print_green("!! Duplicate Found !!")
+                print(f"{getInfo(prefix+"/"+sibling_file)}\t\t{getInfo(file)}")
+                choice=0
+                try:
+                    choice=data if (data:=int(input("Skip=0, Rename=1, Overwrite=2 [0] : ")))<3 else 0
+                except ValueError:
+                    continue
+                if choice==1:
+                    
+                    file=rename(file)
+                    print(file)
+                    dup=False
+                    rn_cnt+=1
+                elif choice==2:
+                    overwrite(prefix+"/"+sibling_file,file)
+                    ow_cnt+=1
+                else:
+                    print(f"Skipped '{file}' - file already exists in {target_folder}/")
+                    sk_cnt+=1
+                
+    if not dup:
+        print("flow")
+        shutil.move(str(file), str(target_file_path))
+        print(f"Moved '{file}' to '{target_folder}/'")
+        mv_cnt+=1
+    return mv_cnt,rn_cnt,sk_cnt,ow_cnt
+                    
+
+
+        
+
+
+
 
 def organize_files(directory_path: str, dry_run: bool = False, config_path: str = "config.json", 
                    show_stats: bool = True) -> None:
@@ -162,6 +208,8 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
         color.print_red("DRY RUN MODE - No files will actually be moved\n")
     
     moved_count = 0
+    overwrite_count =0
+    rename_count = 0
     skipped_count = 0
     total_size = 0
     category_stats = {}  # Track files and size per category
@@ -175,11 +223,12 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
         target_dir = directory / target_folder
         if not dry_run:
             create_folder_if_not_exists(target_dir)
-        
-        # Move the file
+        file_path:Path
+       
         target_file_path = target_dir / file_path.name
         
-        if target_file_path.exists():
+        
+        if target_file_path.exists() and dry_run:
             print(f"Skipped '{file_path.name}' - file already exists in {target_folder}/")
             skipped_count += 1
             continue
@@ -188,11 +237,13 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
             print(f"[DRY RUN] Would move '{file_path.name}' to '{target_folder}/'")
         else:
             try:
-                shutil.move(str(file_path), str(target_file_path))
-                print(f"Moved '{file_path.name}' to '{target_folder}/'")
-                moved_count += 1
+                mv,rn,sk,ow =handle_dup(target_dir,file_path,target_file_path,target_folder)
+                moved_count += mv
+                skipped_count+=sk
+                overwrite_count+=ow
+                rename_count+=rn
                 total_size += file_size
-                
+               
                 # Update category statistics
                 if target_folder not in category_stats:
                     category_stats[target_folder] = {'count': 0, 'size': 0}
