@@ -15,7 +15,8 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List
+from assets import color
 
 
 def load_sorting_rules(config_path: str = "config.json") -> Dict[str, List[str]]:
@@ -32,10 +33,10 @@ def load_sorting_rules(config_path: str = "config.json") -> Dict[str, List[str]]
         with open(config_path, 'r') as f:
             return json.load(f)
     except FileNotFoundError:
-        print(f"Warning: Config file '{config_path}' not found. Using default rules.")
+        color.print_yellow(f"Warning: Config file '{config_path}' not found. Using default rules.")
         return get_default_sorting_rules()
     except json.JSONDecodeError as e:
-        print(f"Error: Invalid JSON in config file: {e}")
+        color.print_red(f"Error: Invalid JSON in config file: {e}")
         return get_default_sorting_rules()
 
 
@@ -75,7 +76,7 @@ def create_folder_if_not_exists(folder_path: Path) -> None:
     """
     if not folder_path.exists():
         folder_path.mkdir(parents=True, exist_ok=True)
-        print(f"Created folder: {folder_path.name}/")
+        color.print_green(f"Created folder: {folder_path.name}/")
 
 
 def get_file_extension(file_path: Path) -> str:
@@ -139,11 +140,11 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
     directory = Path(directory_path)
     
     if not directory.exists():
-        print(f"Error: Directory '{directory_path}' does not exist.")
+        color.print_red(f"Error: Directory '{directory_path}' does not exist.")
         return
     
     if not directory.is_dir():
-        print(f"Error: '{directory_path}' is not a directory.")
+        color.print_red(f"Error: '{directory_path}' is not a directory.")
         return
     
     # Load sorting rules
@@ -153,12 +154,12 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
     files_to_organize = [f for f in directory.iterdir() if f.is_file()]
     
     if not files_to_organize:
-        print("No files found to organize.")
+        color.print_red("No files found to organize.")
         return
     
-    print(f"Found {len(files_to_organize)} files to organize...")
+    color.print_red(f"Found {len(files_to_organize)} files to organize...")
     if dry_run:
-        print("DRY RUN MODE - No files will actually be moved\n")
+        color.print_red("DRY RUN MODE - No files will actually be moved\n")
     
     moved_count = 0
     skipped_count = 0
@@ -198,7 +199,7 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
                 category_stats[target_folder]['count'] += 1
                 category_stats[target_folder]['size'] += file_size
             except Exception as e:
-                print(f"Error moving '{file_path.name}': {e}")
+                color.print_red(f"Error moving '{file_path.name}': {e}")
                 skipped_count += 1
     
     # Summary
@@ -206,8 +207,8 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
     if dry_run:
         print(f"DRY RUN COMPLETE: Would move {len(files_to_organize)} files")
     else:
-        print(f"ORGANIZATION COMPLETE!")
-        print(f"Files moved: {moved_count}")
+        color.print_green(f"ORGANIZATION COMPLETE!")
+        color.print_green(f"Files moved: {moved_count}")
         if skipped_count > 0:
             print(f"Files skipped: {skipped_count}")
         
@@ -229,6 +230,7 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
                 print(f"  {category}: {stats['count']} files ({format_size(stats['size'])})")
             print(f"{'='*50}")
 
+            color.print_yellow(f"Files skipped: {skipped_count}")
 
 
 def main():
@@ -272,10 +274,10 @@ Examples:
     try:
         organize_files(args.directory, args.dry_run, args.config, not args.no_stats)
     except KeyboardInterrupt:
-        print("\nOperation cancelled by user.")
+        color.print_red("\nOperation cancelled by user.")
         sys.exit(1)
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        color.print_red(f"Unexpected error: {e}")
         sys.exit(1)
 
 

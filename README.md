@@ -258,6 +258,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
+**Updates**
+-managed to add color as assets and initialized python virtual env using uv
+
 **Happy Organizing! 🎉**
 
 *Made with ❤️ for beginners and the open source community*
