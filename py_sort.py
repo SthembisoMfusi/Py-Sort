@@ -46,6 +46,16 @@ def prompt_retry(action_desc: str) -> bool:
 # Sorting rules
 
 def load_sorting_rules(config_path: str = "config.json") -> Dict[str, List[str]]:
+    """
+    Load sorting rules from a JSON configuration file.
+    
+    Args:
+        config_path: Path to the configuration file
+        
+    Returns:
+        Dictionary mapping folder names to lists of file extensions
+    """
+    
     try:
         with open(config_path, 'r') as f:
             return json.load(f)
@@ -84,6 +94,13 @@ def get_default_sorting_rules() -> Dict[str, List[str]]:
 # File utilities
 
 def create_folder_if_not_exists(folder_path: Path) -> None:
+    """
+    Create a folder if it doesn't already exist.
+    
+    Args:
+        folder_path: Path to the folder to create
+    """
+    
     while True:
         try:
             if not folder_path.exists():
@@ -107,6 +124,15 @@ def create_folder_if_not_exists(folder_path: Path) -> None:
                 return
 
 def get_file_extension(file_path: Path) -> str:
+     """
+    Get the file extension in lowercase.
+    
+    Args:
+        file_path: Path to the file
+        
+    Returns:
+        File extension including the dot (e.g., '.jpg')
+    """
     return file_path.suffix.lower()
 
 def format_size(size_bytes: int) -> str:
@@ -117,6 +143,17 @@ def format_size(size_bytes: int) -> str:
     return f"{size_bytes:.2f} PB"
 
 def find_target_folder(file_extension: str, sorting_rules: Dict[str, List[str]]) -> str:
+     """
+    Find the target folder for a given file extension.
+    
+    Args:
+        file_extension: The file extension to look up
+        sorting_rules: Dictionary mapping folder names to extensions
+        
+    Returns:
+        The name of the target folder, or 'Other' if no match found
+    """
+    
     for folder_name, extensions in sorting_rules.items():
         if file_extension in extensions:
             return folder_name
@@ -126,6 +163,15 @@ def find_target_folder(file_extension: str, sorting_rules: Dict[str, List[str]])
 
 def organize_files(directory_path: str, dry_run: bool = False, config_path: str = "config.json", 
                    show_stats: bool = True) -> None:
+    """
+    Organize files in the specified directory.
+    
+    Args:
+        directory_path: Path to the directory to organize
+        dry_run: If True, only show what would be moved without actually moving files
+        config_path: Path to the configuration file
+    """
+
     directory = Path(directory_path)
     
     if not directory.exists():
@@ -229,6 +275,8 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
 # CLI
 
 def main():
+    """Main function to handle command line arguments and run the organizer."""
+
     parser = argparse.ArgumentParser(
         description="Organize files in a directory by moving them into subdirectories based on file type.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
