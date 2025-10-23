@@ -14,11 +14,37 @@ import json
 import os
 import shutil
 import sys
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
 from assets import color
 
+# Logging setup
+
+logging.basicConfig(
+    filename="py_sort.log",
+    level=logging.ERROR,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+
+# Retry prompt helper
+
+def prompt_retry(action_desc: str) -> bool:
+    """Ask the user if they want to retry an action that failed."""
+    while True:
+        response = input(f"{action_desc} - Retry? (y/n): ").strip().lower()
+        if response in ('y', 'yes'):
+            return True
+        elif response in ('n', 'no'):
+            return False
+        else:
+            print("Please enter 'y' or 'n'.")
+
+
+# Sorting rules
 
 def load_sorting_rules(config_path: str = "config.json") -> Dict[str, List[str]]:
     """
@@ -30,6 +56,7 @@ def load_sorting_rules(config_path: str = "config.json") -> Dict[str, List[str]]
     Returns:
         Dictionary mapping folder names to lists of file extensions
     """
+    
     try:
         with open(config_path, 'r') as f:
             return json.load(f)
@@ -38,16 +65,14 @@ def load_sorting_rules(config_path: str = "config.json") -> Dict[str, List[str]]
         return get_default_sorting_rules()
     except json.JSONDecodeError as e:
         color.print_red(f"Error: Invalid JSON in config file: {e}")
+        logger.exception("JSON decode error")
+        return get_default_sorting_rules()
+    except Exception as e:
+        color.print_red(f"Unexpected error loading config: {e}")
+        logger.exception("Unexpected error loading config")
         return get_default_sorting_rules()
 
-
 def get_default_sorting_rules() -> Dict[str, List[str]]:
-    """
-    Get default sorting rules when no config file is available.
-    
-    Returns:
-        Dictionary mapping folder names to lists of file extensions
-    """
     return {
         "Images": [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg", ".webp", ".tiff", ".ico", ".raw", 
                    ".heic", ".heif", ".cr2", ".nef", ".arw", ".dng", ".psd"],
@@ -67,6 +92,7 @@ def get_default_sorting_rules() -> Dict[str, List[str]]:
         "Executables": [".exe", ".msi", ".deb", ".rpm", ".dmg", ".app", ".apk", ".jar"]
     }
 
+# File utilities
 
 def create_folder_if_not_exists(folder_path: Path) -> None:
     """
@@ -75,13 +101,31 @@ def create_folder_if_not_exists(folder_path: Path) -> None:
     Args:
         folder_path: Path to the folder to create
     """
-    if not folder_path.exists():
-        folder_path.mkdir(parents=True, exist_ok=True)
-        color.print_green(f"Created folder: {folder_path.name}/")
-
+    
+    while True:
+        try:
+            if not folder_path.exists():
+                folder_path.mkdir(parents=True, exist_ok=True)
+                color.print_green(f"Created folder: {folder_path.name}/")
+            return  # success
+        except PermissionError:
+            logger.exception(f"Permission denied creating folder {folder_path}")
+            color.print_red(f"Permission denied: cannot create folder '{folder_path}'")
+            if not prompt_retry(f"Cannot create folder '{folder_path}'"):
+                return
+        except OSError as e:
+            logger.exception(f"OS error creating folder {folder_path}")
+            color.print_red(f"System error creating folder '{folder_path}': {e}")
+            if not prompt_retry(f"Cannot create folder '{folder_path}'"):
+                return
+        except Exception as e:
+            logger.exception(f"Unexpected error creating folder {folder_path}")
+            color.print_red(f"Unexpected error creating folder '{folder_path}': {e}")
+            if not prompt_retry(f"Cannot create folder '{folder_path}'"):
+                return
 
 def get_file_extension(file_path: Path) -> str:
-    """
+     """
     Get the file extension in lowercase.
     
     Args:
@@ -92,26 +136,15 @@ def get_file_extension(file_path: Path) -> str:
     """
     return file_path.suffix.lower()
 
-
 def format_size(size_bytes: int) -> str:
-    """
-    Convert bytes to human-readable format.
-    
-    Args:
-        size_bytes: Size in bytes
-        
-    Returns:
-        Human-readable string (e.g., '1.5 MB', '500 KB')
-    """
     for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
         if size_bytes < 1024.0:
             return f"{size_bytes:.2f} {unit}"
         size_bytes /= 1024.0
     return f"{size_bytes:.2f} PB"
 
-
 def find_target_folder(file_extension: str, sorting_rules: Dict[str, List[str]]) -> str:
-    """
+     """
     Find the target folder for a given file extension.
     
     Args:
@@ -121,11 +154,13 @@ def find_target_folder(file_extension: str, sorting_rules: Dict[str, List[str]])
     Returns:
         The name of the target folder, or 'Other' if no match found
     """
+    
     for folder_name, extensions in sorting_rules.items():
         if file_extension in extensions:
             return folder_name
     return "Other"
 
+# Core organizer
 
 def log_move(directory: Path, original_path: Path, new_path: Path) -> None:
     """
@@ -160,22 +195,18 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
         directory_path: Path to the directory to organize
         dry_run: If True, only show what would be moved without actually moving files
         config_path: Path to the configuration file
-        show_stats: If True, display detailed statistics at the end
     """
+
     directory = Path(directory_path)
     
     if not directory.exists():
         color.print_red(f"Error: Directory '{directory_path}' does not exist.")
         return
-    
     if not directory.is_dir():
         color.print_red(f"Error: '{directory_path}' is not a directory.")
         return
     
-    # Load sorting rules
     sorting_rules = load_sorting_rules(config_path)
-    
-    # Get all files in the directory (not subdirectories)
     files_to_organize = [f for f in directory.iterdir() if f.is_file()]
     
     if not files_to_organize:
@@ -189,9 +220,20 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
     moved_count = 0
     skipped_count = 0
     total_size = 0
-    category_stats = {}  # Track files and size per category
+    category_stats = {}
     
     for file_path in files_to_organize:
+        try:
+            file_extension = get_file_extension(file_path)
+            target_folder = find_target_folder(file_extension, sorting_rules)
+            file_size = os.path.getsize(file_path)
+            target_dir = directory / target_folder
+            if not dry_run:
+                create_folder_if_not_exists(target_dir)
+            target_file_path = target_dir / file_path.name
+            
+            if target_file_path.exists():
+                print(f"Skipped '{file_path.name}' - file already exists in {target_folder}/")
         file_extension = get_file_extension(file_path)
         target_folder = find_target_folder(file_extension, sorting_rules)
         file_size = os.path.getsize(file_path)
@@ -229,6 +271,44 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
             except Exception as e:
                 color.print_red(f"Error moving '{file_path.name}': {e}")
                 skipped_count += 1
+                continue
+            
+            if dry_run:
+                print(f"[DRY RUN] Would move '{file_path.name}' to '{target_folder}/'")
+            else:
+                while True:
+                    try:
+                        shutil.move(str(file_path), str(target_file_path))
+                        print(f"Moved '{file_path.name}' to '{target_folder}/'")
+                        moved_count += 1
+                        total_size += file_size
+                        if target_folder not in category_stats:
+                            category_stats[target_folder] = {'count': 0, 'size': 0}
+                        category_stats[target_folder]['count'] += 1
+                        category_stats[target_folder]['size'] += file_size
+                        break  # success
+                    except PermissionError:
+                        logger.exception(f"Permission denied moving {file_path}")
+                        color.print_red(f"Permission denied: cannot move '{file_path.name}'")
+                        if not prompt_retry(f"Cannot move '{file_path.name}'"):
+                            skipped_count += 1
+                            break
+                    except OSError as e:
+                        logger.exception(f"OS error moving {file_path}")
+                        color.print_red(f"System error moving '{file_path.name}': {e}")
+                        if not prompt_retry(f"Cannot move '{file_path.name}'"):
+                            skipped_count += 1
+                            break
+                    except Exception as e:
+                        logger.exception(f"Unexpected error moving {file_path}")
+                        color.print_red(f"Unexpected error moving '{file_path.name}': {e}")
+                        if not prompt_retry(f"Cannot move '{file_path.name}'"):
+                            skipped_count += 1
+                            break
+        except Exception as e:
+            color.print_red(f"Error processing '{file_path.name}': {e}")
+            logger.exception(f"Error processing {file_path}")
+            skipped_count += 1
     
     # Summary
     print(f"\n{'='*50}")
@@ -240,7 +320,6 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
         if skipped_count > 0:
             print(f"Files skipped: {skipped_count}")
         
-        # Display detailed statistics if enabled
         if show_stats and moved_count > 0:
             print(f"\n{'='*50}")
             print("STATISTICS")
@@ -248,18 +327,13 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
             print(f"Total files organized: {moved_count}")
             print(f"Total size: {format_size(total_size)}")
             print(f"\nFiles by category:")
-            
-            # Sort categories by count (descending)
-            sorted_categories = sorted(category_stats.items(), 
-                                     key=lambda x: x[1]['count'], 
-                                     reverse=True)
-            
+            sorted_categories = sorted(category_stats.items(), key=lambda x: x[1]['count'], reverse=True)
             for category, stats in sorted_categories:
                 print(f"  {category}: {stats['count']} files ({format_size(stats['size'])})")
             print(f"{'='*50}")
-
             color.print_yellow(f"Files skipped: {skipped_count}")
 
+# CLI
 
 def undo_organization(directory_path: str) -> None:
     """
@@ -337,6 +411,7 @@ def undo_organization(directory_path: str) -> None:
 
 def main():
     """Main function to handle command line arguments and run the organizer."""
+
     parser = argparse.ArgumentParser(
         description="Organize files in a directory by moving them into subdirectories based on file type. Use --undo to restore files to their original locations.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -348,7 +423,7 @@ Examples:
   python py_sort.py ~/Downloads --undo
         """
     )
-    
+   
     parser.add_argument(
         "directory",
         help="Path to the directory to organize or undo organization for"
@@ -390,8 +465,8 @@ Examples:
         sys.exit(1)
     except Exception as e:
         color.print_red(f"Unexpected error: {e}")
+        logger.exception("Unexpected error in main")
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()
