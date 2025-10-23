@@ -17,6 +17,8 @@ import sys
 from pathlib import Path
 from typing import Dict, List
 from assets import color
+from tqdm import tqdm
+from time import sleep
 
 
 def load_sorting_rules(config_path: str = "config.json") -> Dict[str, List[str]]:
@@ -39,6 +41,8 @@ def load_sorting_rules(config_path: str = "config.json") -> Dict[str, List[str]]
         color.print_red(f"Error: Invalid JSON in config file: {e}")
         return get_default_sorting_rules()
 
+def print(message):
+    tqdm.write(message)
 
 def get_default_sorting_rules() -> Dict[str, List[str]]:
     """
@@ -128,6 +132,8 @@ def find_target_folder(file_extension: str, sorting_rules: Dict[str, List[str]])
 
 def organize_files(directory_path: str, dry_run: bool = False, config_path: str = "config.json", 
                    show_stats: bool = True) -> None:
+  
+  
     """
     Organize files in the specified directory.
     
@@ -165,12 +171,17 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
     skipped_count = 0
     total_size = 0
     category_stats = {}  # Track files and size per category
+    total=len(files_to_organize)
     
-    for file_path in files_to_organize:
+    for itter_cnt,file_path in tqdm(enumerate(files_to_organize),colour="#CEFCAB",total=total,desc="Current Progress in Organizing your folder"):
+        #view current progress with a visual progress Bar
+        
         file_extension = get_file_extension(file_path)
         target_folder = find_target_folder(file_extension, sorting_rules)
         file_size = os.path.getsize(file_path)
         
+        
+
         # Create target directory
         target_dir = directory / target_folder
         if not dry_run:
@@ -201,7 +212,10 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
             except Exception as e:
                 color.print_red(f"Error moving '{file_path.name}': {e}")
                 skipped_count += 1
-    
+      
+        
+        sleep(0.01)
+       
     # Summary
     print(f"\n{'='*50}")
     if dry_run:
@@ -231,6 +245,9 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
             print(f"{'='*50}")
 
             color.print_yellow(f"Files skipped: {skipped_count}")
+        
+    
+    
 
 
 def main():
@@ -282,4 +299,5 @@ Examples:
 
 
 if __name__ == "__main__":
+    
     main()
