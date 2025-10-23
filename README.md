@@ -20,6 +20,8 @@ Perfect for cleaning up messy folders like Downloads, Desktop, or any directory 
 - **Dry Run Mode**: Preview changes before actually moving files
 - **Beginner Friendly**: Uses only Python standard library - no external dependencies
 - **Safe Operation**: Won't overwrite existing files
+- **Robust Error Handling**: Graceful handling of permission errors, file conflicts, and other issues with retry logic
+- **Logging**: Detailed logs saved to 'organizer.log' for debugging
 - **Cross-Platform**: Works on Windows, macOS, and Linux
 
 ## 🚀 Quick Start
@@ -80,6 +82,12 @@ python py_sort.py /path/to/messy/folder --config custom_rules.json
 
 # Organize without showing statistics
 python py_sort.py ~/Downloads --no-stats
+
+# Handle permission issues (may require sudo on some systems)
+sudo python py_sort.py /root/some/folder
+
+# Check logs for debugging
+tail -f organizer.log
 ```
 
 ### Example Output
@@ -221,16 +229,30 @@ file-organizer/
 ### Common Issues
 
 **"Permission denied" errors:**
-- Make sure you have write permissions to the target directory
-- On Windows, try running as administrator if needed
+- Ensure you have read/write permissions to the source and target directories
+- On Linux/macOS, try running with `sudo` if accessing system directories (e.g., `sudo python py_sort.py /root`)
+- On Windows, run the command prompt or terminal as administrator
+- The tool will retry failed operations automatically and log details to `organizer.log`
 
 **"No files found to organize":**
-- Check that the directory path is correct
-- Make sure there are files (not just folders) in the directory
+- Verify the directory path is correct and exists
+- Ensure there are files (not just subdirectories) in the directory
+- Check for hidden files or permission issues preventing access
 
 **"Config file not found":**
-- The script will use default rules if `config.json` is missing
+- The script uses default rules if `config.json` is missing
 - Create a `config.json` file or specify a custom path with `--config`
+- Invalid JSON in config will fall back to defaults with a warning
+
+**Other errors (e.g., disk full, file conflicts):**
+- Check the log file `organizer.log` for detailed error messages and stack traces
+- The tool provides specific error messages and suggestions (e.g., "Check permissions or disk space")
+- For file conflicts, existing files are skipped to prevent overwrites
+
+### Debugging
+- All operations are logged to `organizer.log` with timestamps
+- Use `tail -f organizer.log` to monitor logs in real-time
+- Enable dry-run mode (`--dry-run`) to preview changes without risks
 
 ### Getting Help
 
