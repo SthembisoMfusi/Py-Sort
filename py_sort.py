@@ -14,6 +14,7 @@ import json
 import os
 import shutil
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
 from assets import color
@@ -126,6 +127,30 @@ def find_target_folder(file_extension: str, sorting_rules: Dict[str, List[str]])
     return "Other"
 
 
+def log_move(directory: Path, original_path: Path, new_path: Path) -> None:
+    """
+    Log a file move to the moves log file.
+    
+    Args:
+        directory: The directory where the log file is stored
+        original_path: The original path of the file
+        new_path: The new path of the file
+    """
+    log_file = directory / "py_sort_moves.json"
+    if log_file.exists():
+        with open(log_file, 'r') as f:
+            moves = json.load(f)
+    else:
+        moves = []
+    moves.append({
+        "timestamp": datetime.now().isoformat(),
+        "original": str(original_path),
+        "new": str(new_path)
+    })
+    with open(log_file, 'w') as f:
+        json.dump(moves, f, indent=4)
+
+
 def organize_files(directory_path: str, dry_run: bool = False, config_path: str = "config.json", 
                    show_stats: bool = True) -> None:
     """
@@ -193,6 +218,9 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
                 moved_count += 1
                 total_size += file_size
                 
+                # Log the move
+                log_move(directory, file_path, target_file_path)
+                
                 # Update category statistics
                 if target_folder not in category_stats:
                     category_stats[target_folder] = {'count': 0, 'size': 0}
@@ -233,22 +261,97 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
             color.print_yellow(f"Files skipped: {skipped_count}")
 
 
+def undo_organization(directory_path: str) -> None:
+    """
+    Undo the organization by restoring files to their original locations.
+    
+    Args:
+        directory_path: Path to the directory to undo organization for
+    """
+    directory = Path(directory_path)
+    
+    if not directory.exists():
+        color.print_red(f"Error: Directory '{directory_path}' does not exist.")
+        return
+    
+    if not directory.is_dir():
+        color.print_red(f"Error: '{directory_path}' is not a directory.")
+        return
+    
+    log_file = directory / "py_sort_moves.json"
+    
+    if not log_file.exists():
+        color.print_red("No move log found. Nothing to undo.")
+        return
+    
+    try:
+        with open(log_file, 'r') as f:
+            moves = json.load(f)
+    except json.JSONDecodeError:
+        color.print_red("Error reading move log. Log may be corrupted.")
+        return
+    
+    if not moves:
+        color.print_red("No moves to undo.")
+        return
+    
+    color.print_yellow("This will undo the last organization by moving files back to their original locations.")
+    confirm = input("Are you sure? (y/N): ").strip().lower()
+    if confirm != 'y':
+        color.print_red("Undo cancelled.")
+        return
+    
+    restored_count = 0
+    skipped_count = 0
+    
+    # Undo in reverse order
+    for move in reversed(moves):
+        original = Path(move['original'])
+        new = Path(move['new'])
+        
+        if new.exists():
+            if original.exists():
+                print(f"Skipped '{new.name}' - original location already has a file.")
+                skipped_count += 1
+                continue
+            
+            try:
+                shutil.move(str(new), str(original))
+                print(f"Restored '{new.name}' to '{original.parent}'")
+                restored_count += 1
+            except Exception as e:
+                color.print_red(f"Error restoring '{new.name}': {e}")
+                skipped_count += 1
+        else:
+            print(f"Skipped '{new.name}' - file not found in current location.")
+            skipped_count += 1
+    
+    # Clear the log after undo
+    with open(log_file, 'w') as f:
+        json.dump([], f)
+    
+    color.print_green(f"Undo complete! Restored {restored_count} files.")
+    if skipped_count > 0:
+        color.print_yellow(f"Skipped {skipped_count} files.")
+
+
 def main():
     """Main function to handle command line arguments and run the organizer."""
     parser = argparse.ArgumentParser(
-        description="Organize files in a directory by moving them into subdirectories based on file type.",
+        description="Organize files in a directory by moving them into subdirectories based on file type. Use --undo to restore files to their original locations.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   python py_sort.py ~/Downloads
   python py_sort.py ~/Downloads --dry-run
   python py_sort.py ~/Downloads --config my_rules.json
+  python py_sort.py ~/Downloads --undo
         """
     )
     
     parser.add_argument(
         "directory",
-        help="Path to the directory to organize"
+        help="Path to the directory to organize or undo organization for"
     )
     
     parser.add_argument(
@@ -269,10 +372,19 @@ Examples:
         help="Disable detailed statistics at the end"
     )
     
+    parser.add_argument(
+        "--undo",
+        action="store_true",
+        help="Undo the last organization by restoring files to their original locations"
+    )
+    
     args = parser.parse_args()
     
     try:
-        organize_files(args.directory, args.dry_run, args.config, not args.no_stats)
+        if args.undo:
+            undo_organization(args.directory)
+        else:
+            organize_files(args.directory, args.dry_run, args.config, not args.no_stats)
     except KeyboardInterrupt:
         color.print_red("\nOperation cancelled by user.")
         sys.exit(1)
