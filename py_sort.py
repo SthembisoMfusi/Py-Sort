@@ -61,6 +61,15 @@ logger = logging.getLogger(__name__)
 def prompt_retry(action_desc: str) -> bool:
     """
     Ask the user if they want to retry an action that failed.
+     This function presents a yes/no prompt to the user and ensures a valid
+    'y' or 'n' response. It's used to give the user control over repeating
+    operations that encountered transient errors (e.g., permission issues).
+    Args:
+        action_desc (str): A description of the action that failed, to be
+                           included in the retry prompt.
+    Returns:
+        bool: True if the user chooses to retry (enters 'y' or 'yes'),
+              False otherwise (enters 'n' or 'no').
     """
     while True:
         response = input(f"{action_desc} - Retry? (y/n): ").strip().lower()
@@ -75,6 +84,17 @@ def prompt_retry(action_desc: str) -> bool:
 def load_sorting_rules(config_path: str = "config.json") -> Dict[str, List[str]]:
     """
     Load sorting rules from a JSON configuration file.
+    This function attempts to read a JSON file specified by `config_path`.
+    The JSON file is expected to contain a dictionary where keys are folder
+    names (e.g., "Images") and values are lists of file extensions (e.g.,
+    [".jpg", ".png"]). If the file is not found, or if there's an error
+    parsing the JSON, default sorting rules are returned, and a warning/error
+    is printed and logged.
+    Args:
+        config_path (str): Path to the configuration file (default: "config.json").
+    Returns:
+        Dict[str, List[str]]: A dictionary mapping folder names to lists of
+                              file extensions. Returns default rules on error.
     """
     try:
         with open(config_path, 'r') as f:
@@ -95,6 +115,12 @@ def load_sorting_rules(config_path: str = "config.json") -> Dict[str, List[str]]
 def get_default_sorting_rules() -> Dict[str, List[str]]:
     """
     Provides a dictionary of default file sorting rules.
+    This function defines a hardcoded set of common file types mapped to
+    logical folder names. This acts as a fallback if no custom configuration
+    file is provided or if the custom file is invalid.
+    Returns:
+        Dict[str, List[str]]: A dictionary where keys are target folder names
+                              and values are lists of associated file extensions.
     """
     return {
         "Images": [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg", ".webp", ".tiff", ".ico", ".raw",
@@ -119,6 +145,12 @@ def get_default_sorting_rules() -> Dict[str, List[str]]:
 def create_folder_if_not_exists(folder_path: Path) -> None:
     """
     Create a folder if it doesn't already exist, handling permissions and OS errors.
+    This function attempts to create the specified `folder_path` (including any
+    necessary parent directories) if it does not already exist. It incorporates
+    a retry mechanism using `prompt_retry` for `PermissionError` and other
+    `OSError` types, making the folder creation more robust.
+    Args:
+        folder_path (Path): Path to the folder to create.
     """
     while True:
         try:
@@ -146,6 +178,14 @@ def create_folder_if_not_exists(folder_path: Path) -> None:
 def get_file_extension(file_path: Path) -> str:
     """
     Get the file extension in lowercase.
+    This function extracts the file extension from a `pathlib.Path` object.
+    It returns the extension including the leading dot (e.g., '.jpg') and
+    converts it to lowercase for consistent matching against sorting rules.
+    Args:
+        file_path (Path): Path to the file.
+    Returns:
+        str: The file extension, including the dot, in lowercase.
+             Returns an empty string if the file has no extension.
     """
     return file_path.suffix.lower()
 
@@ -153,6 +193,12 @@ def get_file_extension(file_path: Path) -> str:
 def format_size(size_bytes: int) -> str:
     """
     Formats a file size in bytes into a human-readable string (e.g., KB, MB, GB).
+    This function converts a raw byte count into a more understandable format
+    by applying appropriate units (B, KB, MB, GB, TB).
+    Args:
+        size_bytes (int): The size of the file in bytes.
+    Returns:
+        str: A formatted string representing the file size with units
     """
     for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
         if size_bytes < 1024.0:
@@ -164,6 +210,16 @@ def format_size(size_bytes: int) -> str:
 def find_target_folder(file_extension: str, sorting_rules: Dict[str, List[str]]) -> str:
     """
     Find the target folder for a given file extension based on sorting rules.
+    This function iterates through the provided `sorting_rules` to find which
+    category (folder name) the `file_extension` belongs to. If a match is found,
+    the corresponding folder name is returned. If no matching rule is found,
+    the default folder name "Other" is returned.
+    Args:
+        file_extension (str): The file extension to look up (e.g., '.pdf').
+        sorting_rules (Dict[str, List[str]]): A dictionary mapping folder names
+                                               to lists of file extensions.
+    Returns:
+        str: The name of the target folder (e.g., "Documents"), or "Other"
     """
     for folder_name, extensions in sorting_rules.items():
         if file_extension in extensions:
@@ -174,6 +230,13 @@ def find_target_folder(file_extension: str, sorting_rules: Dict[str, List[str]])
 def log_move(directory: Path, original_path: Path, new_path: Path) -> None:
     """
     Log a file move operation to a JSON log file.
+    This function appends details of a file move (timestamp, original path, new path)
+    to a JSON file named `py_sort_moves.json` located in the `directory` being organized.
+    This log is crucial for the undo functionality. The log is a list of dictionaries.
+    Args:
+        directory (Path): The root directory where the log file is stored.
+        original_path (Path): The original full path of the file before moving.
+        new_path (Path): The new full path of the file after moving.
     """
     log_file = directory / "py_sort_moves.json"
     moves = []
@@ -209,6 +272,22 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
                    show_stats: bool = True) -> None:
     """
     Organize files in the specified directory into subfolders by type.
+    This is the core function for organizing files. It sc  ans the target directory,
+    determines the correct destination for each file based on its extension and
+    the sorting rules, and then (if not in dry-run mode) moves the files. It
+    provides progress updates, handles potential errors during file operations
+    with a retry mechanism, and collects statistics about the organization process.
+    Args:
+        directory_path (str): The path to the directory whose files are to be organized.
+        dry_run (bool, optional): If True, files will not actually be moved;
+                                  the script will only show what *would* happen.
+                                  Defaults to False.
+        config_path (str, optional): Path to the JSON configuration file containing
+                                     custom sorting rules. Defaults to "config.json".
+        show_stats (bool, optional): If True, detailed statistics about the
+                                     organization (files moved, total size,
+                                     category breakdown) will be displayed.
+                                     Defaults to True.
     """
     directory = Path(directory_path)
 
@@ -325,6 +404,16 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
 def undo_organization(directory_path: str) -> None:
     """
     Undo the last organization operation for a given directory.
+    
+    This function attempts to revert the file moves performed by the
+    `organize_files` function by reading the `py_sort_moves.json` log file
+    located in the target `directory`. It moves files from their new locations
+    back to their recorded original paths. The undo operation is performed
+    in reverse order of the original moves to minimize conflicts.
+    After a successful undo, the move log is cleared.
+    Args:
+        directory_path (str): Path to the directory for which organization
+                              needs to be undone.
     """
     directory = Path(directory_path)
 
@@ -430,6 +519,12 @@ def undo_organization(directory_path: str) -> None:
 def main():
     """
     Command-line interface for the File Organizer.
+    Main function to handle command-line arguments and run the file organizer.
+    This function serves as the entry point for the PyDex script. It configures
+    the command-line argument parser, interprets user input, and dispatches
+    control to either `organize_files` or `undo_organization` based on the
+    provided arguments. It also includes global error handling for `KeyboardInterrupt`
+    and other unexpected exceptions.
     """
     parser = argparse.ArgumentParser(description="File Organizer - Sort files into folders by type.")
     parser.add_argument("directory", nargs="?", default=".", help="Directory to organize (default: current directory)")
