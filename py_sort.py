@@ -20,8 +20,36 @@ from pathlib import Path
 from typing import Dict, List
 import re
 import unicodedata
+import re
+import unicodedata
 
 from assets import color
+
+def rename_file(file_path: Path, pattern: str, existing_names: set) -> str:
+    """
+    Return a new filename based on pattern, ensuring uniqueness in existing_names.
+    Supports {date}, {clean}, {lower}. Appends counter if needed.
+    """
+    name = file_path.stem
+    ext = file_path.suffix
+
+    # clean version
+    clean_name = unicodedata.normalize('NFKD', name).encode('ascii', 'ignore').decode()
+    clean_name = re.sub(r'[^\w\s-]', '', clean_name).replace(' ', '_').lower()
+
+    new_name = pattern
+    new_name = new_name.replace("{date}", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+    new_name = new_name.replace("{clean}", clean_name)
+    new_name = new_name.replace("{lower}", name.lower())
+
+    candidate = f"{new_name}{ext}"
+    counter = 1
+    while candidate in existing_names:
+        candidate = f"{new_name}_{counter}{ext}"
+        counter += 1
+
+    existing_names.add(candidate)
+    return candidate
 
 def rename_file(file_path: Path, pattern: str, existing_names: set) -> str:
     """
@@ -158,20 +186,24 @@ def create_folder_if_not_exists(folder_path: Path) -> None:
                 folder_path.mkdir(parents=True, exist_ok=True)
                 color.print_green(f"Created folder: {folder_path.name}/")
             return
+            return
         except PermissionError:
             logger.exception(f"Permission denied creating folder {folder_path}")
             color.print_red(f"Permission denied: cannot create folder '{folder_path}'")
             if not prompt_retry(f"Cannot create folder '{folder_path}'"):
+                return
                 return
         except OSError as e:
             logger.exception(f"OS error creating folder {folder_path}")
             color.print_red(f"System error creating folder '{folder_path}': {e}")
             if not prompt_retry(f"Cannot create folder '{folder_path}'"):
                 return
+                return
         except Exception as e:
             logger.exception(f"Unexpected error creating folder {folder_path}")
             color.print_red(f"Unexpected error creating folder '{folder_path}': {e}")
             if not prompt_retry(f"Cannot create folder '{folder_path}'"):
+                return
                 return
 
 
@@ -245,6 +277,7 @@ def log_move(directory: Path, original_path: Path, new_path: Path) -> None:
             with open(log_file, 'r') as f:
                 moves = json.load(f)
             if not isinstance(moves, list):
+            if not isinstance(moves, list):
                 moves = []
                 color.print_yellow(f"Warning: Move log '{log_file.name}' was malformed. Starting a new log.")
         except json.JSONDecodeError:
@@ -317,11 +350,13 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
     skipped_count = 0
     total_size = 0
     category_stats: Dict[str, Dict[str, int]] = {}
+    category_stats: Dict[str, Dict[str, int]] = {}
 
     for file_path in files_to_organize:
         try:
             file_extension = get_file_extension(file_path)
             target_folder = find_target_folder(file_extension, sorting_rules)
+            file_size = file_path.stat().st_size
             file_size = file_path.stat().st_size
             target_dir = directory / target_folder
             target_file_path = target_dir / file_path.name
@@ -329,6 +364,7 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
             if target_file_path.exists():
                 color.print_yellow(f"Skipped '{file_path.name}' - file already exists in '{target_folder}/'")
                 skipped_count += 1
+                continue
                 continue
 
             if not dry_run:
@@ -353,11 +389,13 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
                         category_stats[target_folder]['count'] += 1
                         category_stats[target_folder]['size'] += file_size
                         break
+                        break
                     except PermissionError:
                         logger.exception(f"Permission denied moving {file_path}")
                         color.print_red(f"Permission denied: cannot move '{file_path.name}'")
                         if not prompt_retry(f"Cannot move '{file_path.name}'"):
                             skipped_count += 1
+                            break
                             break
                     except OSError as e:
                         logger.exception(f"OS error moving {file_path}")
@@ -365,11 +403,13 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
                         if not prompt_retry(f"Cannot move '{file_path.name}'"):
                             skipped_count += 1
                             break
+                            break
                     except Exception as e:
                         logger.exception(f"Unexpected error moving {file_path}")
                         color.print_red(f"Unexpected error moving '{file_path.name}': {e}")
                         if not prompt_retry(f"Cannot move '{file_path.name}'"):
                             skipped_count += 1
+                            break
                             break
         except Exception as e:
             color.print_red(f"Error processing '{file_path.name}': {e}")
@@ -380,6 +420,7 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
     if dry_run:
         color.print_yellow(f"DRY RUN COMPLETE: Would have attempted to organize {len(files_to_organize)} files.")
         print(f"  Would move: {moved_count} files")
+        print(f"  Would skip: {skipped_count} files")
         print(f"  Would skip: {skipped_count} files")
     else:
         color.print_green(f"ORGANIZATION COMPLETE!")
@@ -489,11 +530,13 @@ def undo_organization(directory_path: str) -> None:
                     color.print_green(f"Restored '{new_path.name}' to '{original_path.parent}/'")
                     restored_count += 1
                     break
+                    break
                 except PermissionError:
                     logger.exception(f"Permission denied restoring {new_path}")
                     color.print_red(f"Permission denied: cannot restore '{new_path.name}'")
                     if not prompt_retry(f"Cannot restore '{new_path.name}'"):
                         skipped_count += 1
+                        break
                         break
                 except OSError as e:
                     logger.exception(f"OS error restoring {new_path}")
@@ -501,16 +544,22 @@ def undo_organization(directory_path: str) -> None:
                     if not prompt_retry(f"Cannot restore '{new_path.name}'"):
                         skipped_count += 1
                         break
+                        break
                 except Exception as e:
                     logger.exception(f"Unexpected error restoring {new_path}")
                     color.print_red(f"Unexpected error restoring '{new_path.name}': {e}")
                     if not prompt_retry(f"Cannot restore '{new_path.name}'"):
                         skipped_count += 1
                         break
+                        break
         else:
+            color.print_yellow(f"Skipped '{new_path.name}' - file not found at expected location.")
             color.print_yellow(f"Skipped '{new_path.name}' - file not found at expected location.")
             skipped_count += 1
 
+    color.print_green(f"\nUndo complete. Files restored: {restored_count}")
+    if skipped_count:
+        color.print_yellow(f"Files skipped: {skipped_count}")
     color.print_green(f"\nUndo complete. Files restored: {restored_count}")
     if skipped_count:
         color.print_yellow(f"Files skipped: {skipped_count}")
@@ -532,9 +581,25 @@ def main():
     parser.add_argument("--config", default="config.json", help="Path to JSON config file with sorting rules")
     parser.add_argument("--undo", action="store_true", help="Undo the last organization operation")
     parser.add_argument("--no-stats", action="store_true", help="Do not show detailed statistics after organizing")
+    parser = argparse.ArgumentParser(description="File Organizer - Sort files into folders by type.")
+    parser.add_argument("directory", nargs="?", default=".", help="Directory to organize (default: current directory)")
+    parser.add_argument("--dry-run", action="store_true", help="Show what would be done without making changes")
+    parser.add_argument("--config", default="config.json", help="Path to JSON config file with sorting rules")
+    parser.add_argument("--undo", action="store_true", help="Undo the last organization operation")
+    parser.add_argument("--no-stats", action="store_true", help="Do not show detailed statistics after organizing")
 
     args = parser.parse_args()
 
+    directory = args.directory
+    dry_run = args.dry_run
+    config_path = args.config
+    show_stats = not args.no_stats
+    undo = args.undo
+
+    if undo:
+        undo_organization(directory)
+    else:
+        organize_files(directory, dry_run=dry_run, config_path=config_path, show_stats=show_stats)
     directory = args.directory
     dry_run = args.dry_run
     config_path = args.config
@@ -549,3 +614,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
