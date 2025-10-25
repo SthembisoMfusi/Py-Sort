@@ -18,8 +18,36 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
+import re
+import unicodedata
 
 from assets import color
+
+def rename_file(file_path: Path, pattern: str, existing_names: set) -> str:
+    """
+    Return a new filename based on pattern, ensuring uniqueness in existing_names.
+    Supports {date}, {clean}, {lower}. Appends counter if needed.
+    """
+    name = file_path.stem
+    ext = file_path.suffix
+
+    # clean version
+    clean_name = unicodedata.normalize('NFKD', name).encode('ascii', 'ignore').decode()
+    clean_name = re.sub(r'[^\w\s-]', '', clean_name).replace(' ', '_').lower()
+
+    new_name = pattern
+    new_name = new_name.replace("{date}", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+    new_name = new_name.replace("{clean}", clean_name)
+    new_name = new_name.replace("{lower}", name.lower())
+
+    candidate = f"{new_name}{ext}"
+    counter = 1
+    while candidate in existing_names:
+        candidate = f"{new_name}_{counter}{ext}"
+        counter += 1
+
+    existing_names.add(candidate)
+    return candidate
 
 # Logging setup
 # Configures a basic logger to write ERROR level messages to 'py_sort.log'.
@@ -141,22 +169,22 @@ def create_folder_if_not_exists(folder_path: Path) -> None:
             if not folder_path.exists():
                 folder_path.mkdir(parents=True, exist_ok=True)
                 color.print_green(f"Created folder: {folder_path.name}/")
-            return  # Successfully created or already exists
+            return
         except PermissionError:
             logger.exception(f"Permission denied creating folder {folder_path}")
             color.print_red(f"Permission denied: cannot create folder '{folder_path}'")
             if not prompt_retry(f"Cannot create folder '{folder_path}'"):
-                return  # User chose not to retry
+                return
         except OSError as e:
             logger.exception(f"OS error creating folder {folder_path}")
             color.print_red(f"System error creating folder '{folder_path}': {e}")
             if not prompt_retry(f"Cannot create folder '{folder_path}'"):
-                return  # User chose not to retry
+                return
         except Exception as e:
             logger.exception(f"Unexpected error creating folder {folder_path}")
             color.print_red(f"Unexpected error creating folder '{folder_path}': {e}")
             if not prompt_retry(f"Cannot create folder '{folder_path}'"):
-                return  # User chose not to retry
+                return
 
 
 def get_file_extension(file_path: Path) -> str:
@@ -241,7 +269,7 @@ def log_move(directory: Path, original_path: Path, new_path: Path) -> None:
         try:
             with open(log_file, 'r') as f:
                 moves = json.load(f)
-            if not isinstance(moves, list): # Handle corrupted/malformed log
+            if not isinstance(moves, list):
                 moves = []
                 color.print_yellow(f"Warning: Move log '{log_file.name}' was malformed. Starting a new log.")
         except json.JSONDecodeError:
@@ -254,8 +282,8 @@ def log_move(directory: Path, original_path: Path, new_path: Path) -> None:
 
     moves.append({
         "timestamp": datetime.now().isoformat(),
-        "original": str(original_path),
-        "new": str(new_path)
+        "original": str(original_path.resolve()),
+        "new": str(new_path.resolve())
     })
     try:
         with open(log_file, 'w') as f:
@@ -316,23 +344,20 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
     moved_count = 0
     skipped_count = 0
     total_size = 0
-    category_stats: Dict[str, Dict[str, int]] = {} # Type hint for clarity
+    category_stats: Dict[str, Dict[str, int]] = {}
 
     for file_path in files_to_organize:
         try:
             file_extension = get_file_extension(file_path)
             target_folder = find_target_folder(file_extension, sorting_rules)
-            
-            # Use Path.stat().st_size for consistency with pathlib
-            file_size = file_path.stat().st_size 
-
+            file_size = file_path.stat().st_size
             target_dir = directory / target_folder
             target_file_path = target_dir / file_path.name
 
             if target_file_path.exists():
                 color.print_yellow(f"Skipped '{file_path.name}' - file already exists in '{target_folder}/'")
                 skipped_count += 1
-                continue # Skip to the next file
+                continue
 
             if not dry_run:
                 # Ensure the target directory exists before attempting to move
@@ -340,8 +365,7 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
 
             if dry_run:
                 print(f"[DRY RUN] Would move '{file_path.name}' to '{target_folder}/'")
-                # In dry run, we still count what *would* be moved for better stats
-                moved_count += 1 
+                moved_count += 1
                 total_size += file_size
                 category_stats.setdefault(target_folder, {'count': 0, 'size': 0})
                 category_stats[target_folder]['count'] += 1
@@ -362,25 +386,25 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
                         category_stats.setdefault(target_folder, {'count': 0, 'size': 0})
                         category_stats[target_folder]['count'] += 1
                         category_stats[target_folder]['size'] += file_size
-                        break  # Break from the retry loop on successful move
+                        break
                     except PermissionError:
                         logger.exception(f"Permission denied moving {file_path}")
                         color.print_red(f"Permission denied: cannot move '{file_path.name}'")
                         if not prompt_retry(f"Cannot move '{file_path.name}'"):
                             skipped_count += 1
-                            break # User chose not to retry, give up on this file
+                            break
                     except OSError as e:
                         logger.exception(f"OS error moving {file_path}")
                         color.print_red(f"System error moving '{file_path.name}': {e}")
                         if not prompt_retry(f"Cannot move '{file_path.name}'"):
                             skipped_count += 1
-                            break # User chose not to retry, give up on this file
+                            break
                     except Exception as e:
                         logger.exception(f"Unexpected error moving {file_path}")
                         color.print_red(f"Unexpected error moving '{file_path.name}': {e}")
                         if not prompt_retry(f"Cannot move '{file_path.name}'"):
                             skipped_count += 1
-                            break # User chose not to retry, give up on this file
+                            break
         except Exception as e:
             # Catch any unexpected errors during processing a specific file
             color.print_red(f"Error processing '{file_path.name}': {e}")
@@ -392,7 +416,7 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
     if dry_run:
         color.print_yellow(f"DRY RUN COMPLETE: Would have attempted to organize {len(files_to_organize)} files.")
         print(f"  Would move: {moved_count} files")
-        print(f"  Would skip (due to existing destination file or errors): {skipped_count} files")
+        print(f"  Would skip: {skipped_count} files")
     else:
         color.print_green(f"ORGANIZATION COMPLETE!")
         color.print_green(f"Files successfully moved: {moved_count}")
@@ -413,6 +437,112 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
     print(f"{'='*50}")
 
 
+def organize_files_with_rename(directory_path: str, dry_run: bool = False, config_path: str = "config.json",
+                               show_stats: bool = True, rename_pattern: str = None) -> None:
+    """
+    Enhanced organizer that supports renaming files based on a pattern.
+    Uses organize_files() logic but adds rename before moving.
+    """
+    directory = Path(directory_path)
+    if not directory.exists() or not directory.is_dir():
+        color.print_red(f"Error: '{directory_path}' is not a valid directory.")
+        return
+
+    sorting_rules = load_sorting_rules(config_path)
+    files_to_organize = [f for f in directory.iterdir() if f.is_file() and f.name not in ["py_sort.log", "py_sort_moves.json"]]
+    existing_names = set(f.name for f in directory.iterdir())
+
+    if not files_to_organize:
+        color.print_yellow("No files found to organize.")
+        return
+
+    color.print_yellow(f"Found {len(files_to_organize)} files to consider...")
+    if dry_run:
+        color.print_yellow("DRY RUN MODE - No files will actually be moved\n")
+
+    moved_count = skipped_count = total_size = 0
+    category_stats: Dict[str, Dict[str, int]] = {}
+
+    for file_path in files_to_organize:
+        try:
+            ext = get_file_extension(file_path)
+            target_folder = find_target_folder(ext, sorting_rules)
+            file_size = file_path.stat().st_size
+            target_dir = directory / target_folder
+
+            # Ensure folder exists before computing target path
+            if not dry_run:
+                create_folder_if_not_exists(target_dir)
+
+            if rename_pattern:
+                new_name = rename_file(file_path, rename_pattern, existing_names)
+            else:
+                new_name = file_path.name
+
+            target_file_path = target_dir / new_name
+
+            if target_file_path.exists():
+                color.print_yellow(f"Skipped '{file_path.name}' - file already exists in '{target_folder}/'")
+                skipped_count += 1
+                continue
+
+            if dry_run:
+                print(f"[DRY RUN] Would move '{file_path.name}' -> '{target_folder}/{new_name}'")
+            else:
+                while True:
+                    try:
+                        shutil.move(str(file_path), str(target_file_path))
+                        color.print_green(f"Moved '{file_path.name}' -> '{target_folder}/{new_name}'")
+                        log_move(directory, file_path, target_file_path)
+                        break
+                    except PermissionError:
+                        logger.exception(f"Permission denied moving {file_path}")
+                        color.print_red(f"Permission denied: cannot move '{file_path.name}'")
+                        if not prompt_retry(f"Cannot move '{file_path.name}'"):
+                            skipped_count += 1
+                            break
+                    except OSError as e:
+                        logger.exception(f"OS error moving {file_path}")
+                        color.print_red(f"System error moving '{file_path.name}': {e}")
+                        if not prompt_retry(f"Cannot move '{file_path.name}'"):
+                            skipped_count += 1
+                            break
+                    except Exception as e:
+                        logger.exception(f"Unexpected error moving {file_path}")
+                        color.print_red(f"Unexpected error moving '{file_path.name}': {e}")
+                        if not prompt_retry(f"Cannot move '{file_path.name}'"):
+                            skipped_count += 1
+                            break
+
+            moved_count += 1
+            total_size += file_size
+            category_stats.setdefault(target_folder, {'count': 0, 'size': 0})
+            category_stats[target_folder]['count'] += 1
+            category_stats[target_folder]['size'] += file_size
+
+        except Exception as e:
+            color.print_red(f"Error processing '{file_path.name}': {e}")
+            logger.exception(e)
+            skipped_count += 1
+
+    # Summary
+    print(f"\n{'='*50}")
+    if dry_run:
+        color.print_yellow(f"DRY RUN COMPLETE: Would organize {len(files_to_organize)} files.")
+        print(f"  Would move: {moved_count} files")
+        print(f"  Would skip: {skipped_count} files")
+    else:
+        color.print_green(f"ORGANIZATION COMPLETE! Files moved: {moved_count}")
+        if skipped_count:
+            color.print_yellow(f"Files skipped: {skipped_count}")
+
+    if show_stats and moved_count > 0:
+        print("\nSTATISTICS")
+        sorted_categories = sorted(category_stats.items(), key=lambda x: x[1]['count'], reverse=True)
+        for category, stats in sorted_categories:
+            print(f"  {category}: {stats['count']} files ({format_size(stats['size'])})")
+
+
 def undo_organization(directory_path: str) -> None:
     """
     Undo the last organization operation for a given directory.
@@ -430,16 +560,11 @@ def undo_organization(directory_path: str) -> None:
     """
     directory = Path(directory_path)
 
-    if not directory.exists():
-        color.print_red(f"Error: Directory '{directory_path}' does not exist.")
-        return
-
-    if not directory.is_dir():
-        color.print_red(f"Error: '{directory_path}' is not a directory.")
+    if not directory.exists() or not directory.is_dir():
+        color.print_red(f"Error: '{directory_path}' is not a valid directory.")
         return
 
     log_file = directory / "py_sort_moves.json"
-
     if not log_file.exists():
         color.print_red("No move log found for this directory. Nothing to undo.")
         return
@@ -468,79 +593,61 @@ def undo_organization(directory_path: str) -> None:
         color.print_red("Undo cancelled by user.")
         return
 
-    restored_count = 0
-    skipped_count = 0
+    restored_count = skipped_count = 0
 
     # Undo in reverse order of moves to handle potential dependencies better
     for move in reversed(moves):
-        original_path = Path(move.get('original', ''))
-        new_path = Path(move.get('new', ''))
+        original_path = Path(move.get('original', '')).resolve()
+        new_path = Path(move.get('new', '')).resolve()
 
-        if not original_path.is_absolute() or not new_path.is_absolute():
-            color.print_red(f"Skipped '{new_path.name}' - invalid path in log. Log entry: {move}")
+        if not new_path.exists():
+            color.print_yellow(f"Skipped '{new_path.name}' - file not found at expected location.")
             skipped_count += 1
             continue
 
-        if new_path.exists():
-            # Check if original path already has a file with the same name
-            if original_path.exists():
-                color.print_yellow(f"Skipped '{new_path.name}' - original location '{original_path.parent}' "
-                                   f"already has a file named '{original_path.name}'.")
+        if original_path.exists():
+            color.print_yellow(f"Skipped '{new_path.name}' - original location '{original_path.parent}' already has a file named '{original_path.name}'.")
+            skipped_count += 1
+            continue
+
+        if not original_path.parent.exists():
+            color.print_yellow(f"Warning: Creating original parent directory '{original_path.parent}/' for '{new_path.name}'.")
+            try:
+                original_path.parent.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                color.print_red(f"Error creating parent directory '{original_path.parent}': {e}. Skipping '{new_path.name}'.")
                 skipped_count += 1
                 continue
 
-            # Ensure the original parent directory exists before moving
-            if not original_path.parent.exists():
-                color.print_yellow(f"Warning: Creating original parent directory '{original_path.parent}/' for '{new_path.name}'.")
-                try:
-                    original_path.parent.mkdir(parents=True, exist_ok=True)
-                except Exception as e:
-                    color.print_red(f"Error creating parent directory '{original_path.parent}': {e}. Skipping '{new_path.name}'.")
+        while True:
+            try:
+                shutil.move(str(new_path), str(original_path))
+                color.print_green(f"Restored '{new_path.name}' to '{original_path.parent}/'")
+                restored_count += 1
+                break
+            except PermissionError:
+                logger.exception(f"Permission denied restoring {new_path}")
+                color.print_red(f"Permission denied: cannot restore '{new_path.name}'")
+                if not prompt_retry(f"Cannot restore '{new_path.name}'"):
                     skipped_count += 1
-                    continue
+                    break
+            except OSError as e:
+                logger.exception(f"OS error restoring {new_path}")
+                color.print_red(f"System error restoring '{new_path.name}': {e}")
+                if not prompt_retry(f"Cannot restore '{new_path.name}'"):
+                    skipped_count += 1
+                    break
+            except Exception as e:
+                logger.exception(f"Unexpected error restoring {new_path}")
+                color.print_red(f"Unexpected error restoring '{new_path.name}': {e}")
+                if not prompt_retry(f"Cannot restore '{new_path.name}'"):
+                    skipped_count += 1
+                    break
 
-            # Attempt to move the file back with retry mechanism
-            while True:
-                try:
-                    shutil.move(str(new_path), str(original_path))
-                    color.print_green(f"Restored '{new_path.name}' to '{original_path.parent}/'")
-                    restored_count += 1
-                    break # Success, break retry loop
-                except PermissionError:
-                    logger.exception(f"Permission denied restoring {new_path}")
-                    color.print_red(f"Permission denied: cannot restore '{new_path.name}'")
-                    if not prompt_retry(f"Cannot restore '{new_path.name}'"):
-                        skipped_count += 1
-                        break # Give up on this file
-                except OSError as e:
-                    logger.exception(f"OS error restoring {new_path}")
-                    color.print_red(f"System error restoring '{new_path.name}': {e}")
-                    if not prompt_retry(f"Cannot restore '{new_path.name}'"):
-                        skipped_count += 1
-                        break # Give up on this file
-                except Exception as e:
-                    logger.exception(f"Unexpected error restoring {new_path}")
-                    color.print_red(f"Unexpected error restoring '{new_path.name}': {e}")
-                    if not prompt_retry(f"Cannot restore '{new_path.name}'"):
-                        skipped_count += 1
-                        break # Give up on this file
-        else:
-            # The file to undo is no longer at its "new" location
-            color.print_yellow(f"Skipped '{new_path.name}' - file not found at '{new_path}'. "
-                               f"It might have been moved or deleted manually.")
-            skipped_count += 1
+    color.print_green(f"\nUndo complete. Files restored: {restored_count}")
+    if skipped_count:
+        color.print_yellow(f"Files skipped: {skipped_count}")
 
-    # After attempting all undos, clear the log to signify completion
-    try:
-        with open(log_file, 'w') as f:
-            json.dump([], f) # Write an empty list
-        color.print_green(f"\nUndo complete! Restored {restored_count} files.")
-    except Exception as e:
-        logger.exception(f"Error clearing move log {log_file}")
-        color.print_red(f"Error clearing move log '{log_file.name}': {e}. Please remove it manually if desired.")
-
-    if skipped_count > 0:
-        color.print_yellow(f"Skipped {skipped_count} files during undo.")
 
 
 def main():
@@ -553,61 +660,33 @@ def main():
     provided arguments. It also includes global error handling for `KeyboardInterrupt`
     and other unexpected exceptions.
     """
-    parser = argparse.ArgumentParser(
-        description="Organize files in a directory by moving them into subdirectories based on file type. Use --undo to restore files to their original locations.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python py_sort.py ~/Downloads
-  python py_sort.py ~/Downloads --dry-run
-  python py_sort.py ~/Downloads --config my_rules.json
-  python py_sort.py ~/Downloads --undo
-        """
-    )
-
-    parser.add_argument(
-        "directory",
-        help="Path to the directory to organize or undo organization for"
-    )
-
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Show what would be moved without actually moving files"
-    )
-
-    parser.add_argument(
-        "--config",
-        default="config.json",
-        help="Path to the JSON configuration file (default: config.json)"
-    )
-
-    parser.add_argument(
-        "--no-stats",
-        action="store_true",
-        help="Disable detailed statistics at the end of organization"
-    )
-
-    parser.add_argument(
-        "--undo",
-        action="store_true",
-        help="Undo the last organization by restoring files to their original locations"
-    )
+    parser = argparse.ArgumentParser(description="File Organizer - Sort files into folders by type.")
+    parser.add_argument("directory", nargs="?", default=".", help="Directory to organize (default: current directory)")
+    parser.add_argument("--dry-run", action="store_true", help="Show what would be done without making changes")
+    parser.add_argument("--config", default="config.json", help="Path to JSON config file with sorting rules")
+    parser.add_argument("--undo", action="store_true", help="Undo the last organization operation")
+    parser.add_argument("--no-stats", action="store_true", help="Do not show detailed statistics after organizing")
+    parser.add_argument("--rename", default=None, help="Pattern to rename files (supports {date}, {clean}, {lower})")
 
     args = parser.parse_args()
 
-    try:
-        if args.undo:
-            undo_organization(args.directory)
-        else:
-            organize_files(args.directory, args.dry_run, args.config, not args.no_stats)
-    except KeyboardInterrupt:
-        color.print_red("\nOperation cancelled by user.")
-        sys.exit(1)
-    except Exception as e:
-        color.print_red(f"An unexpected error occurred: {e}")
-        logger.exception("Unexpected error in main function")
-        sys.exit(1)
+    if args.undo:
+        undo_organization(args.directory)
+    elif args.rename:
+        organize_files_with_rename(
+            args.directory,
+            dry_run=args.dry_run,
+            config_path=args.config,
+            show_stats=not args.no_stats,
+            rename_pattern=args.rename
+        )
+    else:
+        organize_files(
+            args.directory,
+            dry_run=args.dry_run,
+            config_path=args.config,
+            show_stats=not args.no_stats
+        )
 
 
 if __name__ == "__main__":
