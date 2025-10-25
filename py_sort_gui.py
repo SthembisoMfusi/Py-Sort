@@ -5,6 +5,7 @@ A minimal Tkinter interface for py_sort.py
 
 Features:
 - Select folder to organize
+- Optional file renaming pattern
 - Run py_sort.py as a subprocess
 - Show live progress log
 - No external dependencies
@@ -21,10 +22,11 @@ class OrganizerGUI:
     def __init__(self, master):
         self.master = master
         master.title("File Organizer")
-        master.geometry("650x450")
+        master.geometry("650x500")
         master.resizable(False, False)
 
         self.folder_path = tk.StringVar()
+        self.rename_pattern = tk.StringVar()
 
         # --- Folder selection ---
         tk.Label(master, text="Select folder to organize:", font=("Arial", 11, "bold")).pack(pady=5)
@@ -35,17 +37,24 @@ class OrganizerGUI:
         self.entry.pack(side=tk.LEFT, padx=5)
         tk.Button(frame, text="Browse", command=self.browse_folder).pack(side=tk.LEFT)
 
-        # --- Options ---
+        # Rename option 
+        rename_frame = tk.Frame(master)
+        rename_frame.pack(pady=5, fill="x", padx=15)
+        tk.Label(rename_frame, text="Rename pattern (optional):", font=("Arial", 10, "bold")).pack(anchor="w")
+        tk.Entry(rename_frame, textvariable=self.rename_pattern, width=40).pack(anchor="w", pady=2)
+        tk.Label(rename_frame, text="Use {date}, {clean}, {lower} e.g. {clean}_{date}", fg="gray", font=("Arial", 9)).pack(anchor="w")
+
+        #  Options
         self.dry_run = tk.BooleanVar(value=False)
         self.undo = tk.BooleanVar(value=False)
         tk.Checkbutton(master, text="Dry Run (preview only)", variable=self.dry_run).pack(anchor="w", padx=15)
         tk.Checkbutton(master, text="Undo last organization", variable=self.undo).pack(anchor="w", padx=15)
 
-        # --- Run button ---
+        # Run button 
         tk.Button(master, text="Run Organizer", command=self.run_organizer, bg="#2d7", fg="white",
                   font=("Arial", 10, "bold"), width=20).pack(pady=10)
 
-        # --- Progress area ---
+        # Progress area 
         tk.Label(master, text="Progress:", font=("Arial", 11, "bold")).pack(pady=3)
         self.log_area = scrolledtext.ScrolledText(master, height=15, width=80, state=tk.DISABLED)
         self.log_area.pack(padx=10, pady=5)
@@ -84,6 +93,10 @@ class OrganizerGUI:
             args.append("--dry-run")
         if self.undo.get():
             args.append("--undo")
+
+        pattern = self.rename_pattern.get().strip()
+        if pattern:
+            args.extend(["--rename", pattern])
 
         thread = threading.Thread(target=self.run_subprocess, args=(args,))
         thread.daemon = True
