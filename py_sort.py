@@ -22,6 +22,8 @@ import re
 import unicodedata
 
 from assets import color
+from tqdm import tqdm
+from time import sleep
 
 def rename_file(file_path: Path, pattern: str, existing_names: set) -> str:
     """
@@ -119,6 +121,8 @@ def load_sorting_rules(config_path: str = "config.json") -> Dict[str, List[str]]
         logger.exception("Unexpected error loading config file")
         return get_default_sorting_rules()
 
+def print(message):
+    tqdm.write(message)
 
 def get_default_sorting_rules() -> Dict[str, List[str]]:
     """
@@ -295,6 +299,8 @@ def log_move(directory: Path, original_path: Path, new_path: Path) -> None:
 
 def organize_files(directory_path: str, dry_run: bool = False, config_path: str = "config.json",
                    show_stats: bool = True) -> None:
+  
+  
     """
     Organize files in the specified directory into subfolders by type.
 
@@ -370,6 +376,12 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
                 category_stats.setdefault(target_folder, {'count': 0, 'size': 0})
                 category_stats[target_folder]['count'] += 1
                 category_stats[target_folder]['size'] += file_size
+          
+
+        
+        
+       
+    # Summary
             else:
                 # Actual file move logic with retry mechanism
                 while True:
@@ -410,6 +422,7 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
             color.print_red(f"Error processing '{file_path.name}': {e}")
             logger.exception(f"Error processing {file_path}")
             skipped_count += 1
+        sleep(0.01)
 
     # Summary of the organization process
     print(f"\n{'='*50}")
@@ -535,6 +548,9 @@ def organize_files_with_rename(directory_path: str, dry_run: bool = False, confi
         color.print_green(f"ORGANIZATION COMPLETE! Files moved: {moved_count}")
         if skipped_count:
             color.print_yellow(f"Files skipped: {skipped_count}")
+        
+    
+    
 
     if show_stats and moved_count > 0:
         print("\nSTATISTICS")
@@ -690,4 +706,5 @@ def main():
 
 
 if __name__ == "__main__":
+    
     main()

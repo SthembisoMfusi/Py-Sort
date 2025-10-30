@@ -1,9 +1,11 @@
 
 import sys
 from colorama import Fore
+from tqdm import tqdm
 
 
-
+def print(message,end,file,):
+    tqdm.write(message,file,end)
 
 def print_red(message:str,end="\n",file=sys.stdout):
     print(f"{Fore.RED}{message}{Fore.RESET}",end=end,file=file)
