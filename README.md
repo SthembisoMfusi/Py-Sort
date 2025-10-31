@@ -7,6 +7,7 @@ Perfect for cleaning up messy folders like Downloads, Desktop, or any directory 
 ## ✨ Features
 
 - **Automatic File Sorting**: Moves files into organized folders based on file extensions
+- **Undo Functionality**: Restore files to their original locations with the --undo option
 - **Extensive Format Support**: Recognizes 100+ file formats including:
   - Images (JPEG, PNG, HEIC, RAW formats, PSD, AI)
   - Documents (PDF, DOCX, EPUB, MOBI, eBooks)
@@ -48,6 +49,9 @@ python py_sort.py ~/Downloads --dry-run
 
 # Use a custom configuration file
 python py_sort.py ~/Downloads --config my_rules.json
+
+# Undo the last organization
+python py_sort.py ~/Downloads --undo
 ```
 
 ## 📖 Detailed Usage
@@ -58,12 +62,13 @@ python py_sort.py ~/Downloads --config my_rules.json
 python py_sort.py [directory] [options]
 
 Arguments:
-  directory              Path to the directory to organize
+  directory              Path to the directory to organize or undo organization for
 
 Options:
   --dry-run             Show what would be moved without actually moving files
   --config CONFIG       Path to JSON configuration file (default: config.json)
   --no-stats            Disable detailed statistics at the end
+  --undo                Undo the last organization by restoring files to their original locations
   -h, --help           Show help message
 ```
 
@@ -83,11 +88,8 @@ python py_sort.py /path/to/messy/folder --config custom_rules.json
 # Organize without showing statistics
 python py_sort.py ~/Downloads --no-stats
 
-# Handle permission issues (may require sudo on some systems)
-sudo python py_sort.py /root/some/folder
-
-# Check logs for debugging
-tail -f organizer.log
+# Undo the last organization
+python py_sort.py ~/Downloads --undo
 ```
 
 ### Example Output
@@ -144,6 +146,29 @@ The tool uses a JSON configuration file (`config.json`) to define how files shou
 2. Modify the file extensions for each category
 3. Add new categories as needed
 4. Use your custom config: `python py_sort.py ~/Downloads --config my_rules.json`
+
+## 🔄 Undo Functionality
+
+The tool logs all file moves to a `py_sort_moves.json` file in the organized directory. This allows you to undo the organization and restore files to their original locations.
+
+### How to Undo
+
+1. Run the undo command in the same directory you organized:
+
+```bash
+python py_sort.py ~/Downloads --undo
+```
+
+2. Confirm the undo operation when prompted.
+
+3. Files will be moved back to their original locations, and the move log will be cleared.
+
+### Notes
+
+- The undo operation processes moves in reverse order to handle dependencies correctly.
+- If a file already exists in the original location, it will be skipped to avoid overwriting.
+- The move log is automatically deleted after a successful undo.
+- Only the most recent organization can be undone; previous logs are overwritten.
 
 ## 🧪 Testing
 
