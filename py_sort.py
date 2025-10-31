@@ -11,9 +11,11 @@ License: MIT
 
 import argparse
 import json
+import logging
 import os
 import shutil
 import sys
+import time
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -92,15 +94,8 @@ def load_sorting_rules(config_path: str = "config.json") -> Dict[str, List[str]]
     """
     Load sorting rules from a JSON configuration file.
 
-    This function attempts to read a JSON file specified by `config_path`.
-    The JSON file is expected to contain a dictionary where keys are folder
-    names (e.g., "Images") and values are lists of file extensions (e.g.,
-    [".jpg", ".png"]). If the file is not found, or if there's an error
-    parsing the JSON, default sorting rules are returned, and a warning/error
-    is printed and logged.
-
     Args:
-        config_path (str): Path to the configuration file (default: "config.json").
+        config_path: Path to the configuration file
 
     Returns:
         Dict[str, List[str]]: A dictionary mapping folder names to lists of
@@ -108,8 +103,11 @@ def load_sorting_rules(config_path: str = "config.json") -> Dict[str, List[str]]
     """
     try:
         with open(config_path, 'r') as f:
-            return json.load(f)
+            rules = json.load(f)
+            logging.info(f"Loaded sorting rules from '{config_path}'")
+            return rules
     except FileNotFoundError:
+        logging.warning(f"Config file '{config_path}' not found. Using default rules.")
         color.print_yellow(f"Warning: Config file '{config_path}' not found. Using default rules.")
         return get_default_sorting_rules()
     except json.JSONDecodeError as e:
@@ -154,6 +152,34 @@ def get_default_sorting_rules() -> Dict[str, List[str]]:
         "Presentations": [".ppt", ".pptx", ".odp", ".key", ".pps", ".ppsx"],
         "Executables": [".exe", ".msi", ".deb", ".rpm", ".dmg", ".app", ".apk", ".jar"]
     }
+
+
+def move_file_with_retry(src: str, dst: str, max_retries=3, delay=1):
+    """
+    Move a file with retry logic for transient errors.
+
+    Args:
+        src: Source file path
+        dst: Destination file path
+        max_retries: Maximum number of retry attempts
+        delay: Initial delay between retries in seconds
+    """
+    for attempt in range(max_retries):
+        try:
+            shutil.move(src, dst)
+            logging.info(f"Moved '{src}' to '{dst}'")
+            return
+        except PermissionError as e:
+            if attempt < max_retries - 1:
+                logging.warning(f"Permission error on attempt {attempt + 1}: {e}. Retrying in {delay} seconds...")
+                time.sleep(delay)
+                delay *= 2
+            else:
+                logging.error(f"Failed to move '{src}' after {max_retries} attempts: {e}")
+                raise
+        except OSError as e:
+            logging.error(f"OS error moving '{src}': {e}")
+            raise
 
 
 def create_folder_if_not_exists(folder_path: Path) -> None:
@@ -322,65 +348,85 @@ def organize_files(directory_path: str, dry_run: bool = False, config_path: str 
                                      category breakdown) will be displayed.
                                      Defaults to True.
     """
-    directory = Path(directory_path)
-
-    if not directory.exists():
-        color.print_red(f"Error: Directory '{directory_path}' does not exist.")
-        return
-    if not directory.is_dir():
-        color.print_red(f"Error: '{directory_path}' is not a directory.")
+    try:
+        directory = Path(directory_path)
+        if not directory.exists():
+            color.print_red(f"Error: Directory '{directory_path}' does not exist.")
+            logging.error(f"Directory '{directory_path}' does not exist.")
+            return
+        if not directory.is_dir():
+            color.print_red(f"Error: '{directory_path}' is not a directory.")
+            logging.error(f"'{directory_path}' is not a directory.")
+            return
+    except PermissionError as e:
+        logging.error(f"Permission denied accessing directory '{directory_path}': {e}")
+        color.print_red(f"Error: Permission denied accessing directory '{directory_path}'. Check permissions.")
         return
 
     sorting_rules = load_sorting_rules(config_path)
+    logging.info(f"Loaded sorting rules for directory '{directory_path}'")
 
-    # Filter out directories and the log files themselves to avoid self-organization
-    files_to_organize = [
-        f for f in directory.iterdir()
-        if f.is_file() and f.name not in ["py_sort.log", "py_sort_moves.json"]
-    ]
-
-    if not files_to_organize:
-        color.print_yellow("No files found to organize in the specified directory.")
+    # Get all files in the directory (not subdirectories)
+    try:
+        files_to_organize = [f for f in directory.iterdir() if f.is_file()]
+    except PermissionError as e:
+        logging.error(f"Permission denied reading directory '{directory_path}': {e}")
+        color.print_red(f"Error: Permission denied reading directory '{directory_path}'. Check permissions.")
         return
 
-    color.print_yellow(f"Found {len(files_to_organize)} files to consider for organization...")
+    if not files_to_organize:
+        color.print_yellow("No files found to organize.")
+        logging.info(f"No files found in '{directory_path}'")
+        return
+
+    color.print_blue(f"Found {len(files_to_organize)} files to organize...")
+    logging.info(f"Found {len(files_to_organize)} files in '{directory_path}'")
     if dry_run:
         color.print_yellow("DRY RUN MODE - No files will actually be moved\n")
-
+    
     moved_count = 0
     skipped_count = 0
     total_size = 0
     category_stats: Dict[str, Dict[str, int]] = {}
 
     for file_path in files_to_organize:
-        try:
-            file_extension = get_file_extension(file_path)
-            target_folder = find_target_folder(file_extension, sorting_rules)
-            file_size = file_path.stat().st_size
-            target_dir = directory / target_folder
-            target_file_path = target_dir / file_path.name
+        file_extension = get_file_extension(file_path)
+        target_folder = find_target_folder(file_extension, sorting_rules)
+        file_size = os.path.getsize(file_path)
+        
+        # Create target directory
+        target_dir = directory / target_folder
+        if not dry_run:
+            create_folder_if_not_exists(target_dir)
+        
+        # Move the file
+        target_file_path = target_dir / file_path.name
+        
+        if target_file_path.exists():
+            color.print_yellow(f"Skipped '{file_path.name}' - file already exists in {target_folder}/")
+            logging.info(f"Skipped '{file_path.name}' - already exists in {target_folder}/")
+            skipped_count += 1
+            continue
 
-            if target_file_path.exists():
-                color.print_yellow(f"Skipped '{file_path.name}' - file already exists in '{target_folder}/'")
-                skipped_count += 1
-                continue
-
-            if not dry_run:
-                # Ensure the target directory exists before attempting to move
-                create_folder_if_not_exists(target_dir)
-
-            if dry_run:
-                print(f"[DRY RUN] Would move '{file_path.name}' to '{target_folder}/'")
+        if dry_run:
+            print(f"[DRY RUN] Would move '{file_path.name}' to '{target_folder}/'")
+        else:
+            try:
+                move_file_with_retry(str(file_path), str(target_file_path))
+                color.print_green(f"Moved '{file_path.name}' to '{target_folder}/'")
                 moved_count += 1
                 total_size += file_size
-                category_stats.setdefault(target_folder, {'count': 0, 'size': 0})
+
+                # Update category statistics
+                if target_folder not in category_stats:
+                    category_stats[target_folder] = {'count': 0, 'size': 0}
                 category_stats[target_folder]['count'] += 1
                 category_stats[target_folder]['size'] += file_size
-          
-
-        
-        
-       
+            except (PermissionError, OSError) as e:
+                color.print_red(f"Error moving '{file_path.name}': {e}. Check permissions or disk space.")
+                logging.error(f"Failed to move '{file_path.name}': {e}")
+                skipped_count += 1
+    
     # Summary
             else:
                 # Actual file move logic with retry mechanism
